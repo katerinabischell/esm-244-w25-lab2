@@ -1,5 +1,5 @@
 ---
-title: "lab-2-key"
+title: "Katerina Bischel Lab 02_ESM_244"
 format: 
   html:
     code-folding: show
@@ -49,18 +49,27 @@ R is able to recognize formulas if saved to the global environment. Take advanta
 #| eval: false
 
 #variable name
-f1   <-  dep_var~col_name_1+col_name_2+col_name_3
+#f1   <-  dep_var~col_name_1+col_name_2+col_name_3
 
-mdl<-lm(f1, data=df_where_column_names_come_frome)
+#mdl<-lm(f1, data=df_where_column_names_come_frome)
 ```
-
 
 
 ```{r}
-# Use this chunk and any extras to complete setting up the model
+f1<-mass~bill_l+bill_d+flip_l+species+sex+island
+mdl1<-lm(f1,data=penguins_clean)
+
+f2<-mass~bill_l+bill_d+flip_l+species+sex
+mdl2<-lm(f2,data=penguins_clean)
+
+f3<-mass~bill_d+flip_l+species+sex
+mdl3<-lm(f3,data=penguins_clean)
+
+summary(mdl1) #all variables except for island are significant, R^2=.8721, explains 87% variation in data
+summary(mdl2) #all variables are significant, R^2 = 0.8727 
+summary(mdl3) # R^2 = 0.8727 
+
 ```
-
-
 
 ### AIC
 
@@ -69,7 +78,14 @@ Use AIC to justify your model selection. What edits do you need to make in order
 ```{r}
 #| eval: false
 
-AIC(x,y,z)
+AIC(mdl1, mdl2, mdl3) #We want to use the lowest AIC value (shows us most likely fit model with the fewest parameters)
+```
+
+```{r}
+library(kableExtra)
+AIC(mdl1,mdl2,mdl3) |> 
+  kable() |> 
+  kable_classic_2()
 ```
 
 
@@ -79,11 +95,22 @@ Now we're going to use 10-fold cross validation to help us select the models. Wr
 
 Pseudocode:
 
+How much training data (10 folds)
+split data into test and training
+random sampling
+what metric?
+  Root Mean Squared Error
+  Let's make a function for RMSE
+  
+for loop 
+  apply the model to each training set
+  make predictions on the test set with the fitted training model
+close loop:
 
 
-
-
-
+summarize our RMSE (which model on average was best)
+Final Model built on whole dataset
+  
 
 ### Accuracy criteria
 
@@ -96,23 +123,35 @@ We'll use root mean square error to start as it is the most widely used.
 What is the difference between these two functions? Create two example vectors `x` and `y` to test each. Make sure to run the functions before trying them out. Which do you prefer using?
 
 ```{r}
+x <- c(1,2,3,4,5)
+y <- c(6,7,8,9)
+k <- c(10, 20)
+t <- c(20)
+n <- rnorm(10000)
+g <- rnorm(10000)
+
 calc_rmse<-function(x,y){
   rmse <- (x-y)^2 |> 
     mean() |> 
     sqrt()
-  return(rmse)
-}
+  return(rmse)}
 
-calc_rmse_2<-function(x,y){
-  rmse<- sqrt(mean((x-y)^2))
+calc_rmse_2<-function(k,t){
+  rmse<- sqrt(mean((k-t)^2))
   
   return(rmse)
 }
+
+calc_rmse_3<-function(n,g){
+  rmse <- (n-g)^2 |> 
+    mean() |> 
+    sqrt()
+  return(rmse)}
+
+calc_rmse(x, y)
+calc_rmse_2(k, t)
+calc_rmse_3(n, g)
 ```
-
-
-
-
 
 
 ### Testing and Training split
@@ -130,8 +169,8 @@ sample(ex,size=1)
 # we can create a random sample of any size with the size term.
 
 # Why doesn't the first line work while the second does?
-sample(ex,size=10)
-sample(ex,size=10,replace=TRUE)
+#sample(ex,size=10)
+sample(ex,size=10,replace=TRUE) #pseudo-random generator, generates random numbers based on the clock of the computer we are on
 
 #Describe in words the replace argument.
 
@@ -142,7 +181,9 @@ Why is everybody getting different answers in the example sample? Is this a prob
 
 ```{r}
 #seed
+set.seed(42) #To have everyone on the same pathway of random numbers
 
+sample(ex,size=10,replace=TRUE)
 
 ```
 
@@ -154,18 +195,23 @@ folds<-10
 
 fold_vec<-rep(1:folds,length.out=nrow(penguins_clean))
 
-penguins_fold<-penguins_clean |> #what goes here?
+penguins_fold<-penguins_clean |> 
+  mutate(group=sample(fold_vec, size = n(), replace = FALSE))
   
 
 #check to make sure the fold groups are balanced
 
-table(penguins_fold$group)
+table(penguins_fold$group) #tells us number of observations in each group
 ```
 
 Create dataframes called `test_df` and `train_df` that split the penguins data into a train or test sample
 
 ```{r}
-# datasets here
+test_df <- penguins_fold |> 
+  filter(group==1)
+
+train_df <- penguins_fold |> 
+  filter(group!=1)
 ```
 
 
@@ -173,11 +219,16 @@ Now fit each model to the training set using the `lm()`. Name each model `traini
 
 ```{r}
 
+training_lm1<-lm(f1,data=train_df)
 
+training_lm2<-lm(f2,data=train_df)
 
+training_lm3<-lm(f3,data=train_df)
+
+summary(training_lm1) #R^2 is 0.8793 
+summary(training_lm2) #R^2 is 0.8801 
+summary(training_lm3) #R^2 is 0.8774 
 ```
-
-
 
 **New Function!**
 
@@ -185,16 +236,20 @@ Now fit each model to the training set using the `lm()`. Name each model `traini
 
 ```{r}
 predict_test<-test_df |> 
-  mutate(model1 = predict(xxx,test_df),
-         model2 = predict(xxx,test_df),
-         model3 = predict(xxx,test_df))
+  mutate(model1 = predict(training_lm1,test_df),
+         model2 = predict(training_lm2,test_df),
+         model3 = predict(training_lm3,test_df))
 ```
 
 Calculate the RMSE of the first fold test predictions. Hint: Use summarize to condense the `predict_test` dataframe.
 
 ```{r}
 rmse_predict_test<-predict_test |> 
-  summarize(????)
+  summarize(rmse_mdl1=calc_rmse(model1,mass),
+            rmse_mdl2=calc_rmse(model2,mass),
+            rmse_mdl3=calc_rmse(model3,mass))
+
+rmse_predict_test
 ```
 
 What are the results just looking at the first fold?
@@ -204,23 +259,33 @@ What are the results just looking at the first fold?
 Our general structure works with one fold. Now we need to evaluate across all 10 folds for each model. Let's use a for loop to iterate over the folds for just one model first.
 
 ```{r}
-
+folds<-10
 ### initialize a blank vector
-rmse_vec<-vector(length=folds)  #Why?
+rmse_vec<-vector(mode = 'numeric', length=folds)  #Why?
 
 for( i in 1:folds){
 
   # separate into test and train
-  
+    kfold_test_df <- penguins_fold %>%
+    filter(group == i)
+    
+  kfold_train_df <- penguins_fold %>%
+    filter(group != i)
   
   # Run for one model
   
+  kfold_lm1 <- lm(f1, data = kfold_train_df)
+  
   #Get the predictions from the model
   
+  kfold_pred_df <- kfold_test_df %>%
+    mutate(mdl = predict(kfold_lm1, kfold_test_df))
+  
   # Summarize/calculate the rmse for that model
+   kfold_rmse <- kfold_pred_df %>%
+    summarize(rmse_mdl = calc_rmse(mdl, mass))
   
-  
-  rmse_vec[i]<-kfold_rmse$rmse_md1
+  rmse_vec[i]<-kfold_rmse$rmse_mdl
 }
 
 # Average value for the first model
@@ -232,7 +297,29 @@ Great we made a for loop for one model. Now we would have to do it again and aga
 
 ```{r}
 kfold_cv<-function(i,df,formula){
+
+  #split into test and train
   
+  kfold_train_df <- df %>%
+    filter(group != i)
+
+  kfold_test_df <- df %>%
+    filter(group == i)
+  
+  # run model
+
+  kfold_lm <- lm(formula, data = kfold_train_df)
+
+  # get predictions on test set
+  kfold_pred_df <- kfold_test_df %>%
+    mutate(mdl = predict(kfold_lm, kfold_test_df))
+  
+  # calculate RMSE
+  kfold_rmse <- kfold_pred_df %>%
+    summarize(rmse_mdl = calc_rmse(mdl, mass))
+
+
+  return(kfold_rmse$rmse_mdl)
   
   
 }
